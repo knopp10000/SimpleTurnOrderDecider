@@ -1,0 +1,11 @@
+{
+  "name": "simple_turn_order_decider",
+  "version": "1.0.0",
+  "dependencies": {
+    "@types/chrome": "^0.0.262",
+    "chrome-types": "^0.1.269"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "Simple Turn Order Decider",
+  "description": "Created for remote daily standup meetings",
+  "version": "1.0",
+  "action": {
+    "default_popup": "main.html",
+    "default_icon": "default_icon.png"
+  },
+  "permissions": [
+    "storage"
+  ],
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": false
+  }
+}
