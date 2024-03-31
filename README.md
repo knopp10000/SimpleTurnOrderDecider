@@ -1,2 +1,2 @@
 # SimpleTurnOrderDecider
-A chrome extenstion that was created mainly for deciding the turnorder on remote standups.
+A chrome extension that was created mainly for deciding the turn-order on remote stand-ups.
