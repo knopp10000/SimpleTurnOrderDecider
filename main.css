@@ -1,3 +1,15 @@
 html {
     min-width: 150px;
 }
+
+#button2 {
+    display: none;
+}
+
+#button2 + label:before {
+    background-image: url("eye_open.png")
+}
+
+#button2:checked + label:before {
+    background-image: url("eye_closed.png")
+}

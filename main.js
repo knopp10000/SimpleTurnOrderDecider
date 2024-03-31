@@ -1,5 +1,6 @@
 "use strict";
-let names = [];
+var names = new Map();
+let activeNames = [];
 let shuffledNames = [];
 let pasteOnSameLine = false;
 function f() {
@@ -10,6 +11,8 @@ function f() {
     const maybeNameInput = document.getElementById('nameInput');
     const maybeMyList = document.getElementById("myList");
     const maybeMyList2 = document.getElementById("myList2");
+    const maybeAttribution = document.getElementById("attribution");
+    const maybeFooter = document.getElementById("footer");
     function displayShuffledNames() {
         for (let i = 0; i < shuffledNames.length; i++) {
             const node = document.createElement("li");
@@ -19,9 +22,22 @@ function f() {
                 maybeMyList2.appendChild(node);
         }
     }
-    if (maybeButton && maybeRandomizeButton && maybeNameInput && maybeCopyButton && maybeMyList && maybeClearAllButton && maybeMyList2) {
-        chrome.storage.sync.get({ names: [], shuffledNames: [], pasteOnSameLine: false }, (items) => {
-            items.names.map((name) => addName(name, false));
+    if (maybeButton && maybeRandomizeButton && maybeNameInput && maybeCopyButton && maybeMyList && maybeClearAllButton && maybeMyList2 && maybeAttribution && maybeFooter) {
+        chrome.storage.sync.get({ jsonNames: {}, activeNames: [], shuffledNames: [], pasteOnSameLine: false }, (items) => {
+            console.log("items: ", items);
+            names = new Map(Object.entries(items.jsonNames));
+            console.log("names: ", names);
+            if (names.size > 0) {
+                maybeAttribution.style.display = "";
+                for (let [name, isActive] of names) {
+                    addName(name, false, isActive);
+                }
+            }
+            else {
+                maybeAttribution.style.display = "none";
+                maybeFooter.style.minHeight = "";
+                document.documentElement.style.height = "10rem";
+            }
             shuffledNames = items.shuffledNames;
             if (shuffledNames.length > 0) {
                 displayShuffledNames();
@@ -32,14 +48,17 @@ function f() {
             pasteOnSameLine = items.pasteOnSameLine;
         });
         maybeClearAllButton.addEventListener('click', function () {
-            chrome.storage.sync.set({ names: [], shuffledNames: [] }).then(() => {
-                names = [];
+            chrome.storage.sync.set({ jsonNames: [], activeNames: [], shuffledNames: [] }).then(() => {
+                names.clear();
+                activeNames = [];
                 maybeMyList.innerHTML = "";
                 shuffledNames = [];
                 maybeMyList2.innerHTML = "";
                 maybeCopyButton.style.display = "none";
                 maybeRandomizeButton.style.display = "none";
-                document.documentElement.style.height = "11rem";
+                maybeAttribution.style.display = "none";
+                maybeFooter.style.minHeight = "0px";
+                document.documentElement.style.height = "10rem"; // Should exist a better way to resize the window
             });
         });
         maybeButton.addEventListener('click', function () {
@@ -52,31 +71,89 @@ function f() {
                 addName(text);
             }
         };
-        function addName(text, storageSync = true) {
+        function addName(text, storageSync = true, isActive = true) {
             if (text.trim() == "") {
                 return;
             }
-            const node = document.createElement("li");
+            /**
+             * Creating something like this:
+             * <li>
+             *    <div style="justify-content: space-between; display: flex;">
+             *        <label>a</label>
+             *        <label>
+             *            <img src="eye_open.png" style="height: 25px; width: 25px;">
+             *        </label>
+             *        </div>
+             * </li>
+             */
+            const htmlliElement = document.createElement("li");
+            if (!isActive)
+                htmlliElement.style.textDecoration = "line-through";
+            const divElement = document.createElement("div");
+            const label1 = document.createElement("label");
+            const label2 = document.createElement("label");
+            const eyeImg = document.createElement("img");
             const textnode = document.createTextNode(text);
-            node.appendChild(textnode);
+            label1.appendChild(textnode);
+            htmlliElement.appendChild(divElement);
+            divElement.style.justifyContent = "space-between";
+            divElement.style.display = "flex";
+            divElement.appendChild(label1);
+            eyeImg.src = isActive ? "eye_open.png" : "eye_closed.png";
+            eyeImg.style.height = "25px";
+            eyeImg.style.width = "25px";
+            eyeImg.addEventListener('click', e => onToggleActive(e, text, htmlliElement));
+            label2.appendChild(eyeImg);
+            divElement.appendChild(label2);
             if (maybeMyList) {
-                maybeMyList.appendChild(node);
+                maybeMyList.appendChild(htmlliElement);
                 if (maybeRandomizeButton && maybeRandomizeButton.style.display === "none") {
                     maybeRandomizeButton.style.display = "block";
                 }
-                names = [...names, text];
+                names.set(text, isActive);
+                if (isActive) {
+                    activeNames = [...activeNames, text];
+                }
+                const jsonNames = Object.fromEntries(names);
                 if (storageSync) {
-                    chrome.storage.sync.set({ names: names });
+                    chrome.storage.sync.set({
+                        jsonNames: jsonNames,
+                        activeNames: activeNames
+                    });
                 }
             }
+            maybeAttribution.style.display = "";
+            maybeFooter.style.minHeight = "40px";
             maybeNameInput.value = "";
+        }
+        function onToggleActive(event, name, htmlliElement) {
+            const target = event.target;
+            const oldState = names.get(name);
+            names.set(name, !oldState);
+            if (oldState) {
+                const index = activeNames.indexOf(name);
+                activeNames.splice(index, 1);
+                target.src = "eye_closed.png";
+                htmlliElement.style.textDecoration = "line-through";
+            }
+            else {
+                activeNames = [...activeNames, name];
+                target.src = "eye_open.png";
+                htmlliElement.style.textDecoration = "";
+            }
+            const jsonNames = Object.fromEntries(names);
+            chrome.storage.sync.set({
+                jsonNames: jsonNames,
+                activeNames: activeNames
+            });
         }
         maybeRandomizeButton.addEventListener('click', function () {
             if (maybeCopyButton.style.display === "none") {
                 maybeCopyButton.style.display = "block";
             }
-            shuffledNames = shuffle(names);
-            chrome.storage.sync.set({ names: names, shuffledNames: shuffledNames }).then(() => {
+            shuffledNames = shuffle(activeNames);
+            const jsonNames = Object.fromEntries(names);
+            chrome.storage.sync.set({ jsonNames: jsonNames, shuffledNames: shuffledNames }).then(() => {
                 maybeMyList2.innerHTML = "";
                 displayShuffledNames();
             });
@@ -117,49 +194,5 @@ function shuffle(a) {
         a[j] = x;
     }
     return a;
-}
-function setCookie(cname, cvalue, exdays) {
-    const d = new Date();
-    d.setTime(d.getTime() + (exdays * 24 * 60 * 60 * 1000));
-    let expires = "expires=" + d.toUTCString();
-    document.cookie = cname + "=" + cvalue + ";" + expires + ";path=/";
-}
-function setCookie2(cname, cvalue, exdays) {
-    const d = new Date();
-    d.setTime(d.getTime() + (exdays * 24 * 60 * 60 * 1000));
-    let expires = "expires=" + d.toUTCString();
-    document.cookie = cname + "=" + cvalue + ";" + expires + ";path=/";
-    chrome.cookies.set({
-        "name": "Sample1",
-        "url": "chrome://extensions",
-        "value": "Dummy Data"
-    }, function (cookie) {
-        console.log(JSON.stringify(cookie));
-        console.log(chrome.extension.lastError);
-        console.log(chrome.runtime.lastError);
-    });
-}
-function getCookie(cname) {
-    let name = cname + "=";
-    let decodedCookie = decodeURIComponent(document.cookie);
-    let ca = decodedCookie.split(';');
-    for (let i = 0; i < ca.length; i++) {
-        let c = ca[i];
-        while (c.charAt(0) == ' ') {
-            c = c.substring(1);
-        }
-        if (c.indexOf(name) == 0) {
-            return c.substring(name.length, c.length);
-        }
-    }
-    return "";
-}
-function getNamesFromCookie() {
-    let storedNames = [];
-    let name1 = getCookie("name1");
-    if (name1 != "") {
-        storedNames[0] = name1;
-    }
-    return storedNames;
 }
 f();
