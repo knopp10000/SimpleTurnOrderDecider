@@ -5,7 +5,7 @@
   "version": "1.1",
   "action": {
     "default_popup": "main.html",
-    "default_icon": "default_icon.png"
+    "default_icon": "/assets/default_icon.png"
   },
   "permissions": [
     "storage"
