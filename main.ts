@@ -6,7 +6,7 @@ let shuffledNames: string[] = [];
 let pasteOnSameLine = false;
 
 function f() {
-    const maybeButton = document.getElementById('button')
+    const maybeAddButton = document.getElementById('button')
     const maybeRandomizeButton = document.getElementById('randomize')
     const maybeCopyButton = document.getElementById('copy')
     const maybeClearAllButton = document.getElementById('cookie')
@@ -14,6 +14,7 @@ function f() {
     const maybeMyList = document.getElementById("myList")
     const maybeMyList2 = document.getElementById("myList2")
     const maybeAttribution = document.getElementById("attribution")
+    const maybeAttribution2 = document.getElementById("attribution2")
     const maybeFooter = document.getElementById("footer")
 
 
@@ -28,7 +29,21 @@ function f() {
     }
 
 
-    if (maybeButton && maybeRandomizeButton && maybeNameInput && maybeCopyButton && maybeMyList && maybeClearAllButton && maybeMyList2 && maybeAttribution && maybeFooter) {
+    /**
+     * Update the store data with the current names and active names.
+     */
+    function updateStoreData() {
+        const jsonNames: { [p: string]: boolean } = Object.fromEntries(names)
+
+        chrome.storage.sync.set(
+            {
+                jsonNames: jsonNames,
+                activeNames: activeNames
+            },
+        )
+    }
+
+    if (maybeAddButton && maybeRandomizeButton && maybeNameInput && maybeCopyButton && maybeMyList && maybeClearAllButton && maybeMyList2 && maybeAttribution && maybeAttribution2 && maybeFooter) {
 
         chrome.storage.sync.get(
             {jsonNames: {}, activeNames: [], shuffledNames: [], pasteOnSameLine: false},
@@ -38,11 +53,13 @@ function f() {
                 console.log("names: ", names)
                 if (names.size > 0) {
                     maybeAttribution.style.display = ""
+                    maybeAttribution2.style.display = ""
                     for (let [name, isActive] of names) {
                         addName(name, false, isActive)
                     }
                 } else {
                     maybeAttribution.style.display = "none";
+                    maybeAttribution2.style.display = "none";
                     (maybeFooter as HTMLElement).style.minHeight = "";
                     document.documentElement.style.height = "10rem"
                 }
@@ -71,13 +88,14 @@ function f() {
                 maybeCopyButton.style.display = "none"
                 maybeRandomizeButton.style.display = "none"
                 maybeAttribution.style.display = "none";
+                maybeAttribution2.style.display = "none";
                 (maybeFooter as HTMLElement).style.minHeight = "0px";
                 document.documentElement.style.height = "10rem" // Should exist a better way to resize the window
             });
         })
 
 
-        maybeButton.addEventListener('click', function () {
+        maybeAddButton.addEventListener('click', function () {
             let text = (maybeNameInput as HTMLInputElement).value;
             addName(text)
         })
@@ -89,9 +107,14 @@ function f() {
             }
         }
 
-        function addName(text: string, storageSync: boolean = true, isActive: boolean = true) {
-            if (text.trim() == "") {
+        function addName(name: string, storageSync: boolean = true, isActive: boolean = true) {
+            if (name.trim() == "") {
                 return
+            }
+
+            if (!maybeMyList) {
+                console.error("myList is null")
+                return;
             }
 
             /**
@@ -108,42 +131,62 @@ function f() {
             const htmlliElement = document.createElement("li");
             if (!isActive) htmlliElement.style.textDecoration = "line-through"
             const divElement = document.createElement("div");
-            const label1 = document.createElement("label");
-            const label2 = document.createElement("label");
+            const rightmostContainer = document.createElement("div");
+            const nameTextLabel = document.createElement("label");
+            const eyeLabel = document.createElement("label");
             const eyeImg = document.createElement("img");
-            const textnode = document.createTextNode(text);
-            label1.appendChild(textnode)
-            htmlliElement.appendChild(divElement);
+            const redXLabel = document.createElement("label");
+            const redXImg = document.createElement("img");
+
+            // Left Side - Name
+            const nameTextNode = document.createTextNode(name);
+            nameTextLabel.appendChild(nameTextNode)
+
+            //Right Side - Eye and X
+            // Eye
+            eyeImg.src = isActive ? "./assets/eye_open.png" : "./assets/eye_closed.png"
+            eyeImg.style.height = "20px"
+            eyeImg.style.width = "20px"
+            eyeImg.addEventListener('click', e => onToggleActive(e, name, htmlliElement))
+            eyeLabel.appendChild(eyeImg)
+            rightmostContainer.appendChild(eyeLabel)
+            // Red X
+            redXImg.src = "./assets/redX.png"
+            redXImg.style.height = "20px"
+            redXImg.style.width = "20px"
+            redXImg.addEventListener('click', e => onDeleteName(name, htmlliElement))
+            redXLabel.appendChild(redXImg)
+            rightmostContainer.appendChild(redXLabel)
+
+            // Appending everything to li
             divElement.style.justifyContent = "space-between"
             divElement.style.display = "flex"
-            divElement.appendChild(label1);
-            eyeImg.src = isActive ? "eye_open.png" : "eye_closed.png"
-            eyeImg.style.height = "25px"
-            eyeImg.style.width = "25px"
-            eyeImg.addEventListener('click', e => onToggleActive(e, text, htmlliElement))
-            label2.appendChild(eyeImg)
-            divElement.appendChild(label2)
-            if (maybeMyList) {
-                maybeMyList.appendChild(htmlliElement);
-                if (maybeRandomizeButton && maybeRandomizeButton.style.display === "none") {
-                    maybeRandomizeButton.style.display = "block";
-                }
-                names.set(text, isActive)
-                if (isActive) {
-                    activeNames = [...activeNames, text]
-                }
-                const jsonNames: { [p: string]: boolean } = Object.fromEntries(names)
-                if (storageSync) {
-                    chrome.storage.sync.set(
-                        {
-                            jsonNames: jsonNames,
-                            activeNames: activeNames
-                        },
-                    )
-                }
+            divElement.appendChild(nameTextLabel);
+            divElement.appendChild(rightmostContainer)
+            htmlliElement.appendChild(divElement);
+
+
+            maybeMyList.appendChild(htmlliElement);
+            if (maybeRandomizeButton && maybeRandomizeButton.style.display === "none") {
+                maybeRandomizeButton.style.display = "block";
+            }
+            names.set(name, isActive)
+            if (isActive) {
+                activeNames = [...activeNames, name]
+            }
+            const jsonNames: { [p: string]: boolean } = Object.fromEntries(names)
+            if (storageSync) {
+                chrome.storage.sync.set(
+                    {
+                        jsonNames: jsonNames,
+                        activeNames: activeNames
+                    },
+                )
             }
 
+
             (maybeAttribution as HTMLAnchorElement).style.display = "";
+            (maybeAttribution2 as HTMLAnchorElement).style.display = "";
             (maybeFooter as HTMLElement).style.minHeight = "40px";
             (maybeNameInput as HTMLInputElement).value = ""
 
@@ -157,22 +200,25 @@ function f() {
             if (oldState) {
                 const index = activeNames.indexOf(name);
                 activeNames.splice(index, 1);
-                target.src = "eye_closed.png"
+                target.src = "./assets/eye_closed.png"
                 htmlliElement.style.textDecoration = "line-through"
             } else {
                 activeNames = [...activeNames, name]
-                target.src = "eye_open.png"
+                target.src = "./assets/eye_open.png"
                 htmlliElement.style.textDecoration = ""
             }
 
-            const jsonNames: { [p: string]: boolean } = Object.fromEntries(names)
+            updateStoreData()
+        }
 
-            chrome.storage.sync.set(
-                {
-                    jsonNames: jsonNames,
-                    activeNames: activeNames
-                },
-            )
+        function onDeleteName(name: string, htmlliElement: HTMLLIElement) {
+            console.log("trying to delete name: ", name)
+            names.delete(name)
+            htmlliElement.remove()
+
+            const index = activeNames.indexOf(name);
+            activeNames.splice(index, 1);
+            updateStoreData();
         }
 
         maybeRandomizeButton.addEventListener('click', function () {
